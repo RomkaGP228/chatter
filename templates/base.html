@@ -16,7 +16,7 @@
         <div class="navbar-brand">
             {% if current_user.is_authenticated %}
             {{ current_user.name }}
-            <a href="/logout"" class="btn btn-danger">Выход</a>
+            <a href="/logout" class="btn btn-danger">Выход</a>
             {% else %}
             <a class="btn btn-primary " href="/register">Зарегистрироваться</a>
             <a class="btn btn-success" href="/login">Войти</a>

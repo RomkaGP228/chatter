@@ -16,13 +16,6 @@ def load_user(user_id):
     return db_sess.query(User).get(user_id)
 
 
-# 4. Кроме того, наша модель для пользователей
-# должна содержать ряд методов
-# для корректной работы flask-login,
-# но мы не будем создавать их руками,
-# а воспользуемся множественным наследованием.
-# см. файл: \data\users.py
-
 @app.route('/logout')
 @login_required
 def logout():
@@ -55,24 +48,26 @@ def reqister():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Не забудьте импортировать класс LoginForm и метод login_user из модуля flask-login.
     form = LoginForm()
-    # Если форма логина прошла валидацию,
     if form.validate_on_submit():
-        # Создаем сессию для работы БД:
         db_sess = db_session.create_session()
-        # Находим в БД пользователя по введенной почте:
         user = db_sess.query(User).filter(User.email == form.email.data).first()
-        # Проверяем, введен ли для него правильный пароль, если да, вызываем функцию login_user модуля flask-login
         if user and user.check_password(form.password.data):
-            #  и передаем туда объект нашего пользователя, а также значение галочки «Запомнить меня»:
             login_user(user, remember=form.remember_me.data)
-            # После чего перенаправляем пользователя на главную страницу нашего приложения:
             return redirect("/")
-        # Если пароль неправильный:
         return render_template('login.html', message="Неправильный логин или пароль", form=form)
-    # Если авторизация не пройдена, то возвращаемся на начало авторизации:
     return render_template('login.html', title='Авторизация', form=form)
+
+
+@app.route('/', methods=['GET', 'POST'])
+@app.route('/index', methods=['GET', 'POST'])
+def index():
+    return render_template('index.html')
+
+
+@app.route('/account', methods=['GET', 'POST'])
+def account():
+    return render_template('account.html')
 
 
 def main():
