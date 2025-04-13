@@ -1,0 +1,12 @@
+    .project-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .task-item {
+        border-left: 4px solid #0d6efd;
+        margin-bottom: 10px;
+    }
+    .task-item.completed {
+        border-left-color: #198754;
+        opacity: 0.7;
+    }
