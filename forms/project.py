@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField, SubmitField, DateTimeField, BooleanField
+from wtforms import StringField, TextAreaField, SubmitField, DateTimeLocalField, BooleanField
 from wtforms.validators import DataRequired
 
 
@@ -12,5 +12,5 @@ class ProjectForm(FlaskForm):
 class TaskForm(FlaskForm):
     name = StringField('Task Name', validators=[DataRequired()])
     description = TextAreaField('Description')
-    deadline = DateTimeField('Deadline', format='%Y-%m-%d %H:%M')
+    deadline = DateTimeLocalField('Deadline', format='%Y-%m-%dT%H:%M')
     submit = SubmitField('Add Task') 

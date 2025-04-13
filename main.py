@@ -112,7 +112,7 @@ def index():
             task = Task(
                 name=name,
                 description=description,
-                deadline=datetime.strptime(deadline, '%Y-%m-%d') if deadline else None,
+                deadline=datetime.strptime(deadline, '%Y-%m-%dT%H:%M') if deadline else None,
                 project_id=project_id
             )
             
@@ -245,13 +245,14 @@ def add_task():
     task = Task(
         name=name,
         description=description,
-        deadline=datetime.strptime(deadline, '%Y-%m-%d') if deadline else None,
+        deadline=datetime.strptime(deadline, '%Y-%m-%dT%H:%M') if deadline else None,
         project_id=project_id
     )
     
     db_sess.add(task)
     db_sess.commit()
     
+    flash('Task added successfully!', 'success')
     return redirect(url_for('index'))
 
 
@@ -267,44 +268,84 @@ def toggle_task(task_id):
     if not task:
         return jsonify({'error': 'Task not found'}), 404
         
-    task.completed = not task.completed
+    task.is_completed = not task.is_completed
     db_sess.commit()
     
-    return jsonify({'success': True, 'completed': task.completed})
+    return jsonify({'success': True, 'completed': task.is_completed})
 
 
 @app.route('/projects/task/<int:task_id>', methods=['DELETE'])
 @login_required
 def delete_task(task_id):
     db_sess = db_session.create_session()
-    task = db_sess.query(Task).join(Project).filter(
-        Task.id == task_id,
-        Project.user_id == current_user.id
-    ).first()
+    task = db_sess.query(Task).filter(Task.id == task_id).first()
     
-    if not task:
+    if not task or task.project.user_id != current_user.id:
         return jsonify({'error': 'Task not found'}), 404
         
     db_sess.delete(task)
     db_sess.commit()
-    
     return jsonify({'success': True})
+
+
+@app.route('/projects/task/<int:task_id>', methods=['GET'])
+@login_required
+def get_task(task_id):
+    db_sess = db_session.create_session()
+    task = db_sess.query(Task).filter(Task.id == task_id).first()
+    
+    if not task or task.project.user_id != current_user.id:
+        return jsonify({'error': 'Task not found'}), 404
+        
+    return jsonify({
+        'id': task.id,
+        'name': task.name,
+        'description': task.description,
+        'deadline': task.deadline.isoformat() if task.deadline else None,
+        'is_completed': task.is_completed
+    })
+
+
+@app.route('/projects/task/edit', methods=['POST'])
+@login_required
+def edit_task():
+    task_id = request.form.get('task_id')
+    if not task_id:
+        flash('Task ID is required', 'error')
+        return redirect(url_for('index'))
+        
+    db_sess = db_session.create_session()
+    task = db_sess.query(Task).filter(Task.id == task_id).first()
+    
+    if not task or task.project.user_id != current_user.id:
+        flash('Task not found', 'error')
+        return redirect(url_for('index'))
+        
+    task.name = request.form.get('name')
+    task.description = request.form.get('description')
+    deadline = request.form.get('deadline')
+    if deadline:
+        task.deadline = datetime.strptime(deadline, '%Y-%m-%dT%H:%M')
+    else:
+        task.deadline = None
+        
+    db_sess.commit()
+    flash('Task updated successfully!', 'success')
+    return redirect(url_for('index'))
 
 
 @app.route('/projects/<int:project_id>', methods=['DELETE'])
 @login_required
 def delete_project(project_id):
     db_sess = db_session.create_session()
-    project = db_sess.query(Project).filter(
-        Project.id == project_id,
-        Project.user_id == current_user.id
-    ).first()
+    project = db_sess.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
     
-    if project:
-        db_sess.delete(project)
-        db_sess.commit()
-        return jsonify({'success': True})
-    return jsonify({'success': False}), 404
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+        
+    db_sess.delete(project)
+    db_sess.commit()
+    return jsonify({'success': True})
 
 
 def main():
