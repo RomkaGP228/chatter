@@ -6,6 +6,7 @@ from data.projects import Project, Task
 from forms.user import LoginForm, RegisterForm
 from forms.project import ProjectForm, TaskForm
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 login_manager = LoginManager()
@@ -27,16 +28,20 @@ def logout():
 
 
 @app.route('/register', methods=['GET', 'POST'])
-def reqister():
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
     form = RegisterForm()
     if form.validate_on_submit():
         if form.password.data != form.password_again.data:
-            return render_template('register.html', title='Регистрация', form=form,
-                                   message="Пароли не совпадают")
+            return render_template('register.html', title='Регистрация',
+                                form=form,
+                                message="Пароли не совпадают")
         db_sess = db_session.create_session()
         if db_sess.query(User).filter(User.email == form.email.data).first():
-            return render_template('register.html', title='Регистрация', form=form,
-                                   message="Такой пользователь уже есть")
+            return render_template('register.html', title='Регистрация',
+                                form=form,
+                                message="Такой пользователь уже есть")
         user = User(
             name=form.name.data,
             email=form.email.data,
@@ -45,7 +50,7 @@ def reqister():
         user.set_password(form.password.data)
         db_sess.add(user)
         db_sess.commit()
-        return redirect('/login')
+        return redirect(url_for('login'))
     return render_template('register.html', title='Регистрация', form=form)
 
 
@@ -350,6 +355,10 @@ def delete_project(project_id):
 
 
 def main():
+    if os.path.exists('db') is True:
+        pass
+    else:
+        os.mkdir('db')
     db_session.global_init("db/database.db")
     app.run(port=8080, host='127.0.0.1')
 
