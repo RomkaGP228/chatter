@@ -1,5 +1,5 @@
-from flask import Flask, render_template, redirect
-from flask_login import LoginManager, login_user, login_required, logout_user
+from flask import Flask, render_template, redirect, request, flash, url_for
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from data import db_session
 from data.users import User
 from forms.user import LoginForm, RegisterForm
@@ -67,6 +67,45 @@ def index():
 
 @app.route('/account', methods=['GET', 'POST'])
 def account():
+    if not current_user.is_authenticated:
+        form = LoginForm()
+        if form.validate_on_submit():
+            db_sess = db_session.create_session()
+            user = db_sess.query(User).filter(User.email == form.email.data).first()
+            if user and user.check_password(form.password.data):
+                login_user(user, remember=form.remember_me.data)
+                return redirect(url_for('account'))
+            return render_template('account.html', form=form, message="Неправильный логин или пароль")
+        return render_template('account.html', form=form)
+    
+    if request.method == 'POST':
+        db_sess = db_session.create_session()
+        user = db_sess.query(User).filter(User.id == current_user.id).first()
+        
+        if user:
+            # Update basic information
+            user.name = request.form.get('name')
+            user.about = request.form.get('about')
+            
+            # Check if email is being changed
+            new_email = request.form.get('email')
+            if new_email != user.email:
+                # Verify email is not already taken
+                existing_user = db_sess.query(User).filter(User.email == new_email).first()
+                if existing_user and existing_user.id != user.id:
+                    flash('Email is already taken', 'error')
+                    return redirect('/account')
+                user.email = new_email
+            
+            # Handle password change if provided
+            new_password = request.form.get('password')
+            if new_password:
+                user.set_password(new_password)
+            
+            db_sess.commit()
+            flash('Account updated successfully!', 'success')
+            return redirect('/account')
+    
     return render_template('account.html')
 
 
