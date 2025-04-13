@@ -118,6 +118,24 @@
         </div>
     </div>
 
+    <!-- Task Details Modal -->
+    <div class="modal fade" id="taskDetailsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="taskModalTitle">Tasks for <span id="selectedDate"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="taskList"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Projects Section -->
     {% if projects %}
         {% for project in projects %}
@@ -125,10 +143,10 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">{{ project.name }}</h5>
                 <div>
-                    <button class="btn btn-sm btn-outline-primary" onclick="showAddTaskModal({{ project.id }})">
+                    <button class="btn btn-sm btn-outline-primary" data-project-id="{{ project.id }}" onclick="showAddTaskModal(this.getAttribute('data-project-id'))">
                         <i class="bi bi-plus-lg"></i> Add Task
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteProject({{ project.id }})">
+                    <button class="btn btn-sm btn-outline-danger" data-project-id="{{ project.id }}" onclick="deleteProject(this.getAttribute('data-project-id'))">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -139,16 +157,17 @@
                     {% for task in project.tasks %}
                     <div class="task-item">
                         <input type="checkbox" class="task-checkbox" 
-                               onclick="toggleTask({{ task.id }})"
-                               {% if task.completed %}checked{% endif %}>
-                        <span class="{% if task.completed %}completed{% endif %}">
+                               data-task-id="{{ task.id }}"
+                               onclick="toggleTask(this.getAttribute('data-task-id'))"
+                               {% if task.is_completed %}checked{% endif %}>
+                        <span class="{% if task.is_completed %}completed{% endif %}">
                             {{ task.name }}
                         </span>
                         <small class="text-muted ms-2">
                             Deadline: {{ task.deadline.strftime('%Y-%m-%d') if task.deadline else 'No deadline' }}
                         </small>
                         <div class="task-actions">
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTask({{ task.id }})">
+                            <button class="btn btn-sm btn-outline-danger" data-task-id="{{ task.id }}" onclick="deleteTask(this.getAttribute('data-task-id'))">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </div>
@@ -210,7 +229,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="taskForm" method="POST" action="{{ url_for('add_task') }}">
+                <form id="taskForm" method="POST" action="{{ url_for('index') }}">
                     <input type="hidden" name="project_id" id="taskProjectId">
                     <div class="mb-3">
                         <label for="taskName" class="form-label">Task Name</label>
@@ -238,12 +257,10 @@
 <script>
     // Get all task deadlines
     const deadlines = new Set();
-    {% for project in projects %}
-        {% for task in project.tasks %}
-            {% if task.deadline %}
-                deadlines.add('{{ task.deadline.strftime("%Y-%m-%d") }}');
-            {% endif %}
-        {% endfor %}
+    const taskDetails = {};
+    {% for date, tasks in task_deadlines.items() %}
+        deadlines.add("{{ date }}");
+        taskDetails["{{ date }}"] = {{ tasks|tojson|safe }};
     {% endfor %}
 
     let currentDate = new Date();
@@ -256,13 +273,11 @@
 
         monthYear.textContent = `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
 
-        // First day of the month
         let firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
         let lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
         let dayCount = 1;
         let html = '';
 
-        // Determine which day of the week the month starts on
         let startDay = firstDay.getDay();
 
         for (let i = 0; i < 6; i++) {
@@ -289,27 +304,31 @@
         document.querySelectorAll('.calendar-day').forEach(cell => {
             cell.addEventListener('click', function() {
                 const date = this.getAttribute('data-date');
-                const tasks = [];
-                {% for project in projects %}
-                    {% for task in project.tasks %}
-                        {% if task.deadline %}
-                            if ('{{ task.deadline.strftime("%Y-%m-%d") }}' === date) {
-                                tasks.push({
-                                    name: '{{ task.name }}',
-                                    project: '{{ project.name }}',
-                                    completed: {{ task.completed|lower }}
-                                });
-                            }
-                        {% endif %}
-                    {% endfor %}
-                {% endfor %}
+                const tasks = taskDetails[date] || [];
                 
                 if (tasks.length > 0) {
-                    let message = `Tasks for ${date}:\n\n`;
+                    document.getElementById('selectedDate').textContent = date;
+                    const taskList = document.getElementById('taskList');
+                    taskList.innerHTML = '';
+                    
                     tasks.forEach(task => {
-                        message += `${task.project}: ${task.name} ${task.completed ? '(Completed)' : ''}\n`;
+                        const taskElement = document.createElement('div');
+                        taskElement.className = 'mb-2 p-2 border rounded';
+                        taskElement.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>${task.project}</strong>
+                                    <p class="mb-0">${task.name}</p>
+                                </div>
+                                <span class="badge ${task.is_completed ? 'bg-success' : 'bg-warning'}">
+                                    ${task.is_completed ? 'Completed' : 'Pending'}
+                                </span>
+                            </div>
+                        `;
+                        taskList.appendChild(taskElement);
                     });
-                    alert(message);
+                    
+                    new bootstrap.Modal(document.getElementById('taskDetailsModal')).show();
                 }
             });
         });
