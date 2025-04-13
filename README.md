@@ -8,7 +8,7 @@ git):
 
 ```shell
 git clone https://github.com/RomkaGP228/chatter.git
-cd un_grande_compo
+cd chatter
 
 # Linux or Mac
 python3 -m venv venv
@@ -21,7 +21,10 @@ python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
+
+# Далее перейдите по адресу: http://127.0.0.1:8080
 ```
+
 
 ## О проекте
 
