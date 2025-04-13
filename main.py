@@ -1,8 +1,10 @@
-from flask import Flask, render_template, redirect, request, flash, url_for
+from flask import Flask, render_template, redirect, request, flash, url_for, jsonify
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from data import db_session
 from data.users import User
+from data.projects import Project, Task
 from forms.user import LoginForm, RegisterForm
+from forms.project import ProjectForm, TaskForm
 
 app = Flask(__name__)
 login_manager = LoginManager()
@@ -62,7 +64,29 @@ def login():
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/index', methods=['GET', 'POST'])
 def index():
-    return render_template('index.html')
+    project_form = ProjectForm()
+    projects = []
+    
+    if current_user.is_authenticated:
+        db_sess = db_session.create_session()
+        projects = db_sess.query(Project).filter(Project.user_id == current_user.id).all()
+    
+    if request.method == 'POST' and project_form.validate_on_submit():
+        if not current_user.is_authenticated:
+            flash('Please log in to create projects', 'error')
+            return redirect(url_for('login'))
+            
+        db_sess = db_session.create_session()
+        project = Project(
+            name=project_form.name.data,
+            description=project_form.description.data,
+            user_id=current_user.id
+        )
+        db_sess.add(project)
+        db_sess.commit()
+        return redirect(url_for('index'))
+    
+    return render_template('index.html', projects=projects, project_form=project_form)
 
 
 @app.route('/account', methods=['GET', 'POST'])
@@ -107,6 +131,117 @@ def account():
             return redirect('/account')
     
     return render_template('account.html')
+
+
+@app.route('/projects', methods=['GET', 'POST'])
+def projects():
+    print(f"Current user: {current_user}")
+    print(f"User authenticated: {current_user.is_authenticated}")
+    
+    project_form = ProjectForm()
+    task_form = TaskForm()
+    
+    if request.method == 'POST':
+        if not current_user.is_authenticated:
+            flash('Please log in to create a project', 'error')
+            return redirect(url_for('login'))
+            
+        print("POST request received")
+        print(f"Form data: {request.form}")
+        if project_form.validate_on_submit():
+            print("Form validated successfully")
+            db_sess = db_session.create_session()
+            project = Project(
+                name=project_form.name.data,
+                description=project_form.description.data,
+                user_id=current_user.id
+            )
+            db_sess.add(project)
+            db_sess.commit()
+            flash('Project created successfully!', 'success')
+            return redirect('/projects')
+        else:
+            print(f"Form validation errors: {project_form.errors}")
+    
+    db_sess = db_session.create_session()
+    projects = []
+    if current_user.is_authenticated:
+        projects = db_sess.query(Project).filter(Project.user_id == current_user.id).all()
+    return render_template('projects.html', projects=projects, project_form=project_form, task_form=task_form)
+
+
+@app.route('/projects/task', methods=['POST'])
+@login_required
+def add_task():
+    task_form = TaskForm()
+    if task_form.validate_on_submit():
+        db_sess = db_session.create_session()
+        project = db_sess.query(Project).filter(
+            Project.id == request.form.get('project_id'),
+            Project.user_id == current_user.id
+        ).first()
+        
+        if project:
+            task = Task(
+                name=task_form.name.data,
+                description=task_form.description.data,
+                deadline=task_form.deadline.data,
+                project_id=project.id
+            )
+            db_sess.add(task)
+            db_sess.commit()
+            flash('Task added successfully!', 'success')
+        else:
+            flash('Project not found', 'error')
+    return redirect('/projects')
+
+
+@app.route('/projects/task/<int:task_id>/toggle', methods=['POST'])
+@login_required
+def toggle_task(task_id):
+    db_sess = db_session.create_session()
+    task = db_sess.query(Task).join(Project).filter(
+        Task.id == task_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if task:
+        task.is_completed = not task.is_completed
+        db_sess.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 404
+
+
+@app.route('/projects/task/<int:task_id>', methods=['DELETE'])
+@login_required
+def delete_task(task_id):
+    db_sess = db_session.create_session()
+    task = db_sess.query(Task).join(Project).filter(
+        Task.id == task_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if task:
+        db_sess.delete(task)
+        db_sess.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 404
+
+
+@app.route('/projects/<int:project_id>', methods=['DELETE'])
+@login_required
+def delete_project(project_id):
+    db_sess = db_session.create_session()
+    project = db_sess.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if project:
+        db_sess.delete(project)
+        db_sess.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 404
 
 
 def main():
