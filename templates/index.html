@@ -121,11 +121,11 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="projectForm" method="POST" action="{{ url_for('index') }}">
+                    <form id="projectForm" method="POST" action="{{ url_for('index') }}" autocomplete="off">
                         {{ project_form.hidden_tag() }}
                         <div class="mb-3">
                             Название проекта
-                            {{ project_form.name(class="form-control", required="required") }}
+                            {{ project_form.name(class="form-control", required="required", autocomplete="off") }}
                             {% if project_form.name.errors %}
                                 <div class="invalid-feedback d-block">
                                     {% for error in project_form.name.errors %}
@@ -136,7 +136,7 @@
                         </div>
                         <div class="mb-3">
                             Описание
-                            {{ project_form.description(class="form-control") }}
+                            {{ project_form.description(class="form-control", autocomplete="off") }}
                         </div>
                     </form>
                 </div>
@@ -157,20 +157,20 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="taskForm" method="POST" action="/projects/task" onsubmit="return handleTaskSubmit(event)">
+                    <form id="taskForm" method="POST" action="/projects/task" onsubmit="return handleTaskSubmit(event)" autocomplete="off">
                         {{ task_form.hidden_tag() }}
                         <input type="hidden" name="project_id" id="projectId">
                         <div class="mb-3">
                             Название задачи
-                            {{ task_form.name(class="form-control") }}
+                            {{ task_form.name(class="form-control", autocomplete="off") }}
                         </div>
                         <div class="mb-3">
                             Описание
-                            {{ task_form.description(class="form-control") }}
+                            {{ task_form.description(class="form-control", autocomplete="off") }}
                         </div>
                         <div class="mb-3">
                             Дедлайн
-                            {{ task_form.deadline(class="form-control") }}
+                            {{ task_form.deadline(class="form-control", autocomplete="off") }}
                         </div>
                     </form>
                 </div>
@@ -233,30 +233,19 @@
         })
         .then(response => {
             if (response.ok) {
-                // Close the modal
+                // Очищаем форму
+                form.reset();
+                // Очищаем значения полей вручную для надежности
+                const inputs = form.querySelectorAll('input, textarea');
+                inputs.forEach(input => {
+                    input.value = '';
+                });
+                
+                // Закрываем модальное окно
                 bootstrap.Modal.getInstance(document.getElementById('newTaskModal')).hide();
                 
-                // Fetch updated task deadlines
-                return fetch('/index')
-                    .then(response => response.text())
-                    .then(html => {
-                        // Create a temporary DOM to parse the new task deadlines
-                        const parser = new DOMParser();
-                        const doc = parser.parseFromString(html, 'text/html');
-                        const scriptContent = doc.querySelector('script').textContent;
-                        
-                        // Extract the new taskDetails from the script
-                        const match = scriptContent.match(/const taskDetails = ({.*?});/);
-                        if (match) {
-                            const newTaskDetails = JSON.parse(match[1]);
-                            // Update the calendar with new data
-                            Object.assign(taskDetails, newTaskDetails);
-                            renderCalendar();
-                        }
-                        
-                        // Reload the page to show the new task in the list
-                        location.reload();
-                    });
+                // Обновляем страницу
+                location.reload();
             }
         })
         .catch(error => {
@@ -436,5 +425,23 @@
                 new bootstrap.Modal(document.getElementById('editTaskModal')).show();
             });
     }
+
+    // Очистка формы после успешного добавления задачи
+    document.addEventListener('DOMContentLoaded', function() {
+        const taskForm = document.getElementById('taskForm');
+        if (taskForm) {
+            taskForm.addEventListener('submit', function() {
+                // Очищаем форму после отправки
+                setTimeout(() => {
+                    taskForm.reset();
+                    // Очищаем значения полей вручную для надежности
+                    const inputs = taskForm.querySelectorAll('input, textarea');
+                    inputs.forEach(input => {
+                        input.value = '';
+                    });
+                }, 100);
+            });
+        }
+    });
 </script>
 {% endblock %}

@@ -258,8 +258,17 @@ def add_task():
     db_sess.add(task)
     db_sess.commit()
 
-    flash('Task added successfully!', 'success')
-    return redirect(url_for('index'))
+    return jsonify({
+        'success': True,
+        'message': 'Task added successfully!',
+        'task': {
+            'id': task.id,
+            'name': task.name,
+            'description': task.description,
+            'deadline': task.deadline.isoformat() if task.deadline else None,
+            'is_completed': task.is_completed
+        }
+    })
 
 
 @app.route('/projects/task/<int:task_id>/toggle', methods=['POST'])
