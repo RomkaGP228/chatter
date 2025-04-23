@@ -39,8 +39,8 @@ nano config
     - Учитель: [**Алексей Анатольев**](https://github.com/anatolyev)
     - Ссылка на запись работы проекта: https://disk.yandex.ru/i/XReJlTZtGpp_kA
 2. Количество строк кода:
-    - Без учета HTML и CSS: 508
-    - С учетом HTML и CSS: 997
+    - Без учета HTML: 504 (main: 363, user: 21, project: 16, __all_models: 2, config: 1, db_session: 33, projects: 34, telegram_text: 14, users: 30)
+    - С учетом HTML: 991 (account: 57, base: 46, index: 131, projects: 152, login: 36, register: 66)
 3. [**Техническое задание**](materials/tecnical_spetification.md)
 
 4. Управление для пользователя:
