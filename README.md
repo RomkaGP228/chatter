@@ -23,6 +23,10 @@ pip install -r requirements.txt
 python main.py
 
 # Далее перейдите по адресу: http://127.0.0.1:8080
+# далее вам надо создать бота в телеграм через BotFather, получить токен бота вставить токен в config.py
+# Сделать это можно через nano или блокнот
+cd data/config
+nano config
 ```
 
 
@@ -33,11 +37,15 @@ python main.py
     - Назначение: Трекер Задач и дедлайнов
     - Тимлид и Разработчик: [**Роман Кулаков**](https://github.com/RomkaGP228)
     - Учитель: [**Алексей Анатольев**](https://github.com/anatolyev)
-    - Кол-во
+    - Ссылка на запись работы проекта: https://disk.yandex.ru/i/XReJlTZtGpp_kA
 2. Количество строк кода:
     - Без учета HTML и CSS: 488
     - С учетом HTML и CSS: 977
 3. [**Техническое задание**](materials/tecnical_spetification.md)
 
 4. Управление для пользователя:
-   .
+   - ![](materials/photoes/img.png)
+   - ![](materials/photoes/img_1.png)
+   - ![](materials/photoes/img_2.png)
+   - ![](materials/photoes/img_3.png)
+   - ![](materials/photoes/img_4.png)

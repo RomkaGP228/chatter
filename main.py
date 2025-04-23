@@ -135,16 +135,16 @@ def index():
                     # Собираем задачи для выбранной даты
                     if selected_date:
                         for project in projects:
-                            for task in project.tasks:
-                                if task.deadline and task.deadline.date() == selected_date:
+                            for t in project.tasks:
+                                if t.deadline and t.deadline.date() == selected_date:
                                     if selected_date not in task_deadlines:
                                         task_deadlines[selected_date] = []
                                     task_deadlines[selected_date].append({
-                                        'id': task.id,
-                                        'name': task.name,
-                                        'description': task.description,
+                                        'id': t.id,
+                                        'name': t.name,
+                                        'description': t.description,
                                         'project_name': project.name,
-                                        'deadline': task.deadline
+                                        'deadline': t.deadline
                                     })
                     return render_template('index.html',
                                            projects=projects,
@@ -164,9 +164,29 @@ def index():
                         task.deadline = None
                     db_sess.commit()
                     flash('Задача успешно обновлена!', 'success')
+                    
+                    # Оптимизированное обновление task_deadlines только для измененной даты
                     selected_date = task.deadline.date() if task.deadline else None
-                    return redirect(
-                        url_for('index', selected_date=selected_date.strftime('%Y-%m-%d') if selected_date else ''))
+                    if selected_date:
+                        task_deadlines[selected_date] = []
+                        for project in projects:
+                            for t in project.tasks:
+                                if t.deadline and t.deadline.date() == selected_date:
+                                    task_deadlines[selected_date].append({
+                                        'id': t.id,
+                                        'name': t.name,
+                                        'description': t.description,
+                                        'project_name': project.name,
+                                        'deadline': t.deadline
+                                    })
+                    
+                    return render_template('index.html',
+                                           projects=projects,
+                                           current_date=current_date,
+                                           calendar_days=calendar_days,
+                                           first_day_weekday=first_day_weekday,
+                                           selected_date=selected_date,
+                                           task_deadlines=task_deadlines)
         elif 'delete_task' in request.form:
             task_id = request.form['delete_task']
             task = db_sess.get(Task, task_id)
@@ -214,25 +234,30 @@ def index():
 @app.route('/account', methods=['GET', 'POST'])
 @login_required
 def account():
-    """Функция страницы аккаунта"""
-    if request.method == 'POST':
-        db_sess = db_session.create_session()
-        user = db_sess.get(User, current_user.id)
+    try:
+        """Функция страницы аккаунта"""
+        if request.method == 'POST':
+            db_sess = db_session.create_session()
+            user = db_sess.get(User, current_user.id)
 
-        if user:
-            user.name = request.form['name']
-            user.email = request.form['email']
-            user.about = request.form['about']
-            user.telegram = request.form['telegram']
+            if user:
+                user.name = request.form['name']
+                user.email = request.form['email']
+                user.about = request.form['about']
+                user.telegram = request.form['telegram']
 
-            if request.form['password']:
-                user.set_password(request.form['password'])
+                if request.form['password']:
+                    user.set_password(request.form['password'])
 
-            db_sess.commit()
-            flash('Изменения успешно сохранены!', 'success')
-            return redirect(url_for('account'))
+                db_sess.commit()
+                flash('Изменения успешно сохранены!', 'success')
+                return redirect(url_for('account'))
 
-    return render_template('account.html')
+        return render_template('account.html')
+    except:
+        login()
+
+
 
 
 @app.route('/projects', methods=['GET', 'POST'])
