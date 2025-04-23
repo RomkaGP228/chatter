@@ -4,9 +4,9 @@ from data import db_session
 from data.users import User
 from data.projects import Project, Task
 from forms.user import LoginForm, RegisterForm
-from forms.project import ProjectForm, TaskForm
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
+from data.telegram_text import telegram
 
 app = Flask(__name__)
 login_manager = LoginManager()
@@ -16,32 +16,35 @@ app.config['SECRET_KEY'] = 'yandex_lyceum_secret_key'
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Функция для загрузки информации о юзере"""
     db_sess = db_session.create_session()
-    return db_sess.query(User).get(user_id)
+    return db_sess.get(User, user_id)
 
 
 @app.route('/logout')
 @login_required
 def logout():
+    """Функция двыхода из аккаунта"""
     logout_user()
     return redirect("/")
 
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    """Функция для регистрации аккаунта"""
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     form = RegisterForm()
     if form.validate_on_submit():
         if form.password.data != form.password_again.data:
             return render_template('register.html', title='Регистрация',
-                                form=form,
-                                message="Пароли не совпадают")
+                                   form=form,
+                                   message="Пароли не совпадают")
         db_sess = db_session.create_session()
         if db_sess.query(User).filter(User.email == form.email.data).first():
             return render_template('register.html', title='Регистрация',
-                                form=form,
-                                message="Такой пользователь уже есть")
+                                   form=form,
+                                   message="Такой пользователь уже есть")
         user = User(
             name=form.name.data,
             email=form.email.data,
@@ -56,6 +59,7 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Функция для входа в аккаунт"""
     form = LoginForm()
     if form.validate_on_submit():
         db_sess = db_session.create_session()
@@ -68,307 +72,265 @@ def login():
 
 
 @app.route('/', methods=['GET', 'POST'])
-@app.route('/index', methods=['GET', 'POST'])
 def index():
-    project_form = ProjectForm()
-    task_form = TaskForm()
-    projects = []
-    task_deadlines = {}
-
+    """основная страница сайта"""
+    db_sess = db_session.create_session()
     if current_user.is_authenticated:
-        db_sess = db_session.create_session()
         projects = db_sess.query(Project).filter(Project.user_id == current_user.id).all()
+    else:
+        projects = []
 
-        # Collect all task deadlines
-        for project in projects:
-            for task in project.tasks:
-                if task.deadline:
-                    date_str = task.deadline.strftime('%Y-%m-%d')
-                    if date_str not in task_deadlines:
-                        task_deadlines[date_str] = []
-                    task_deadlines[date_str].append({
-                        'name': task.name,
-                        'project': project.name,
-                        'is_completed': task.is_completed
-                    })
+    # Инициализация переменных
+    task_deadlines = {}
+    selected_date = None
+
+    # Получаем нынешний месяц
+    month = request.args.get('month')
+    if month:
+        current_date = datetime.strptime(month, '%Y-%m')
+    else:
+        current_date = datetime.now()
+
+    # Первый день месяца
+    first_day = current_date.replace(day=1)
+
+    # Последний день месяца
+    if current_date.month == 12:
+        last_day = current_date.replace(year=current_date.year + 1, month=1, day=1) - timedelta(days=1)
+    else:
+        last_day = current_date.replace(month=current_date.month + 1, day=1) - timedelta(days=1)
+
+    # Количество дней в месяце
+    days_in_month = last_day.day
+
+    # День недели первого дня месяца
+    first_day_weekday = first_day.weekday()
+
+    # список дней
+    calendar_days = []
+    for i in range(1, days_in_month + 1):
+        day_date = current_date.replace(day=i)
+        has_tasks = any(
+            task.deadline and task.deadline.date() == day_date.date()
+            for project in projects
+            for task in project.tasks
+        )
+        calendar_days.append({
+            'day': i,
+            'has_tasks': has_tasks,
+            'date': day_date.strftime('%Y-%m-%d')
+        })
 
     if request.method == 'POST':
-        if 'project_id' in request.form:  # This is a task creation request
-            if not current_user.is_authenticated:
-                flash('Please log in to create tasks', 'error')
-                return redirect(url_for('login'))
+        if 'selected_date' in request.form:
+            selected_date = datetime.strptime(request.form['selected_date'], '%Y-%m-%d').date()
+        elif 'task_id' in request.form:
+            task_id = request.form['task_id']
+            task = db_sess.get(Task, task_id)
 
-            project_id = request.form.get('project_id')
-            name = request.form.get('name')
-            description = request.form.get('description')
-            deadline = request.form.get('deadline')
+            if task and task.project.user_id == current_user.id:
+                if request.form.get('action') == 'edit':
+                    # Показываем форму редактирования
+                    selected_date = task.deadline.date() if task.deadline else None
+                    # Собираем задачи для выбранной даты
+                    if selected_date:
+                        for project in projects:
+                            for task in project.tasks:
+                                if task.deadline and task.deadline.date() == selected_date:
+                                    if selected_date not in task_deadlines:
+                                        task_deadlines[selected_date] = []
+                                    task_deadlines[selected_date].append({
+                                        'id': task.id,
+                                        'name': task.name,
+                                        'description': task.description,
+                                        'project_name': project.name,
+                                        'deadline': task.deadline
+                                    })
+                    return render_template('index.html',
+                                           projects=projects,
+                                           current_date=current_date,
+                                           calendar_days=calendar_days,
+                                           first_day_weekday=first_day_weekday,
+                                           selected_date=selected_date,
+                                           task_deadlines=task_deadlines,
+                                           editing_task=task)
+                else:
+                    # Сохраняем изменения
+                    task.name = request.form['name']
+                    task.description = request.form['description']
+                    if request.form['deadline']:
+                        task.deadline = datetime.strptime(request.form['deadline'], '%Y-%m-%dT%H:%M')
+                    else:
+                        task.deadline = None
+                    db_sess.commit()
+                    flash('Задача успешно обновлена!', 'success')
+                    selected_date = task.deadline.date() if task.deadline else None
+                    return redirect(
+                        url_for('index', selected_date=selected_date.strftime('%Y-%m-%d') if selected_date else ''))
+        elif 'delete_task' in request.form:
+            task_id = request.form['delete_task']
+            task = db_sess.get(Task, task_id)
 
-            if not project_id or not name:
-                flash('Missing required fields', 'error')
-                return redirect(url_for('index'))
+            if task and task.project.user_id == current_user.id:
+                selected_date = task.deadline.date() if task.deadline else None
+                db_sess.delete(task)
+                db_sess.commit()
+                # отправка в теелграм
+                telegram(f'Задача: {task.name} удалена!')
+                flash('Задача успешно удалена!', 'success')
+            else:
+                flash('Ошибка: Задача не найдена или у вас нет прав на её удаление', 'error')
 
-            db_sess = db_session.create_session()
-            project = db_sess.query(Project).filter(Project.id == project_id,
-                                                    Project.user_id == current_user.id).first()
+            return redirect(url_for('index', selected_date=selected_date.strftime('%Y-%m-%d') if selected_date else ''))
+    else:
+        selected_date_str = request.args.get('selected_date')
+        if selected_date_str:
+            selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
 
-            if not project:
-                flash('Project not found', 'error')
-                return redirect(url_for('index'))
-
-            task = Task(
-                name=name,
-                description=description,
-                deadline=datetime.strptime(deadline, '%Y-%m-%dT%H:%M') if deadline else None,
-                project_id=project_id
-            )
-
-            db_sess.add(task)
-            db_sess.commit()
-            flash('Task added successfully!', 'success')
-            return redirect(url_for('index'))
-
-        elif project_form.validate_on_submit():  # This is a project creation request
-            if not current_user.is_authenticated:
-                flash('Please log in to create projects', 'error')
-                return redirect(url_for('login'))
-
-            db_sess = db_session.create_session()
-            project = Project(
-                name=project_form.name.data,
-                description=project_form.description.data,
-                user_id=current_user.id
-            )
-            db_sess.add(project)
-            db_sess.commit()
-            flash('Project created successfully!', 'success')
-            return redirect(url_for('index'))
+    # Собираем задачи для выбранной даты
+    if selected_date:
+        for project in projects:
+            for task in project.tasks:
+                if task.deadline and task.deadline.date() == selected_date:
+                    if selected_date not in task_deadlines:
+                        task_deadlines[selected_date] = []
+                    task_deadlines[selected_date].append({
+                        'id': task.id,
+                        'name': task.name,
+                        'description': task.description,
+                        'project_name': project.name,
+                        'deadline': task.deadline
+                    })
 
     return render_template('index.html',
                            projects=projects,
-                           project_form=project_form,
-                           task_form=task_form,
+                           current_date=current_date,
+                           calendar_days=calendar_days,
+                           first_day_weekday=first_day_weekday,
+                           selected_date=selected_date,
                            task_deadlines=task_deadlines)
 
 
 @app.route('/account', methods=['GET', 'POST'])
+@login_required
 def account():
-    if not current_user.is_authenticated:
-        form = LoginForm()
-        if form.validate_on_submit():
-            db_sess = db_session.create_session()
-            user = db_sess.query(User).filter(User.email == form.email.data).first()
-            if user and user.check_password(form.password.data):
-                login_user(user, remember=form.remember_me.data)
-                return redirect(url_for('account'))
-            return render_template('account.html', form=form, message="Неправильный логин или пароль")
-        return render_template('account.html', form=form)
-
+    """Функция страницы аккаунта"""
     if request.method == 'POST':
         db_sess = db_session.create_session()
-        user = db_sess.query(User).filter(User.id == current_user.id).first()
+        user = db_sess.get(User, current_user.id)
 
         if user:
-            # Update basic information
-            user.name = request.form.get('name')
-            user.about = request.form.get('about')
+            user.name = request.form['name']
+            user.email = request.form['email']
+            user.about = request.form['about']
+            user.telegram = request.form['telegram']
 
-            # Check if email is being changed
-            new_email = request.form.get('email')
-            if new_email != user.email:
-                # Verify email is not already taken
-                existing_user = db_sess.query(User).filter(User.email == new_email).first()
-                if existing_user and existing_user.id != user.id:
-                    flash('Email is already taken', 'error')
-                    return redirect('/account')
-                user.email = new_email
-
-            # Handle password change if provided
-            new_password = request.form.get('password')
-            if new_password:
-                user.set_password(new_password)
+            if request.form['password']:
+                user.set_password(request.form['password'])
 
             db_sess.commit()
-            flash('Account updated successfully!', 'success')
-            return redirect('/account')
+            flash('Изменения успешно сохранены!', 'success')
+            return redirect(url_for('account'))
 
     return render_template('account.html')
 
 
 @app.route('/projects', methods=['GET', 'POST'])
+@login_required
 def projects():
-    print(f"Current user: {current_user}")
-    print(f"User authenticated: {current_user.is_authenticated}")
-
-    project_form = ProjectForm()
-    task_form = TaskForm()
-
+    """функция страница проектов"""
+    db_sess = db_session.create_session()
     if request.method == 'POST':
-        if not current_user.is_authenticated:
-            flash('Please log in to create a project', 'error')
-            return redirect(url_for('login'))
-
-        print("POST request received")
-        print(f"Form data: {request.form}")
-        if project_form.validate_on_submit():
-            print("Form validated successfully")
-            db_sess = db_session.create_session()
+        if 'name' in request.form:  # Добавление нового проекта
             project = Project(
-                name=project_form.name.data,
-                description=project_form.description.data,
+                name=request.form['name'],
+                description=request.form['description'],
                 user_id=current_user.id
             )
             db_sess.add(project)
             db_sess.commit()
-            flash('Project created successfully!', 'success')
-            return redirect('/projects')
-        else:
-            print(f"Form validation errors: {project_form.errors}")
+            flash('Проект успешно создан!', 'success')
+            # отправка в телеграм
+            telegram(f"Создан новый проект: {request.form['name']}")
+            return redirect(url_for('projects'))
 
-    db_sess = db_session.create_session()
-    projects = []
-    if current_user.is_authenticated:
-        projects = db_sess.query(Project).filter(Project.user_id == current_user.id).all()
-    return render_template('projects.html', projects=projects, project_form=project_form, task_form=task_form)
+        elif 'task_name' in request.form:  # Добавление новой задачи
+            project_id = request.form['project_id']
+            project = db_sess.get(Project, project_id)
+            task_name = request.form['task_name']
+            if project and project.user_id == current_user.id:
+                task = Task(
+                    name=task_name,
+                    description=request.form['task_description'],
+                    project_id=project_id
+                )
 
+                if request.form['task_deadline']:
+                    task.deadline = datetime.strptime(request.form['task_deadline'], '%Y-%m-%dT%H:%M')
+                db_sess.add(task)
+                db_sess.commit()
+                # отправка в теелграм
+                telegram(f"Добавлена новая задача: {task_name} с дедлайном: {task.deadline} в проект: {project.name}")
+                flash('Задача успешно добавлена!', 'success')
+            else:
+                flash('Ошибка: Проект не найден или у вас нет прав на его изменение', 'error')
 
-@app.route('/projects/task', methods=['POST'])
-@login_required
-def add_task():
-    project_id = request.form.get('project_id')
-    name = request.form.get('name')
-    description = request.form.get('description')
-    deadline = request.form.get('deadline')
+            return redirect(url_for('projects'))
 
-    if not project_id or not name:
-        return jsonify({'error': 'Missing required fields'}), 400
+        elif 'toggle_task' in request.form:  # Выполнена ли задача
+            task_id = request.form['toggle_task']
+            task = db_sess.get(Task, task_id)
+            if task and task.project.user_id == current_user.id:
+                task.is_completed = not task.is_completed
+                # отправка в теелграм
+                telegram(f'Задача: {task.name} выполнена')
+                db_sess.commit()
+            else:
+                flash('Ошибка: Задача не найдена или у вас нет прав на её изменение', 'error')
+            return redirect(url_for('projects'))
 
-    db_sess = db_session.create_session()
-    project = db_sess.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
+        elif 'delete_task' in request.form:  # Удаление задания
+            task_id = request.form['delete_task']
+            task = db_sess.get(Task, task_id)
+            if task and task.project.user_id == current_user.id:
+                db_sess.delete(task)
+                db_sess.commit()
+                # отправка в теелграм
+                telegram(f'Задача: {task.name} удалена!')
+                flash('Задача успешно удалена!', 'success')
+            else:
+                flash('Ошибка: Задача не найдена или у вас нет прав на её удаление', 'error')
 
-    if not project:
-        return jsonify({'error': 'Project not found'}), 404
+            return redirect(url_for('projects'))
 
-    task = Task(
-        name=name,
-        description=description,
-        deadline=datetime.strptime(deadline, '%Y-%m-%dT%H:%M') if deadline else None,
-        project_id=project_id
-    )
+        elif 'delete_project' in request.form:  # Удаление проекта
+            project_id = request.form['delete_project']
+            project = db_sess.get(Project, project_id)
+            if project and project.user_id == current_user.id:
+                db_sess.delete(project)
+                db_sess.commit()
+                telegram(f'Проект: {project.name} удален!')
+                flash('Проект успешно удален!', 'success')
+            else:
+                flash('Ошибка: Проект не найден или у вас нет прав на его удаление', 'error')
 
-    db_sess.add(task)
-    db_sess.commit()
+            return redirect(url_for('projects'))
 
-    return jsonify({
-        'success': True,
-        'message': 'Task added successfully!',
-        'task': {
-            'id': task.id,
-            'name': task.name,
-            'description': task.description,
-            'deadline': task.deadline.isoformat() if task.deadline else None,
-            'is_completed': task.is_completed
-        }
-    })
-
-
-@app.route('/projects/task/<int:task_id>/toggle', methods=['POST'])
-@login_required
-def toggle_task(task_id):
-    db_sess = db_session.create_session()
-    task = db_sess.query(Task).join(Project).filter(
-        Task.id == task_id,
-        Project.user_id == current_user.id
-    ).first()
-
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
-
-    task.is_completed = not task.is_completed
-    db_sess.commit()
-
-    return jsonify({'success': True, 'completed': task.is_completed})
-
-
-@app.route('/projects/task/<int:task_id>', methods=['DELETE'])
-@login_required
-def delete_task(task_id):
-    db_sess = db_session.create_session()
-    task = db_sess.query(Task).filter(Task.id == task_id).first()
-
-    if not task or task.project.user_id != current_user.id:
-        return jsonify({'error': 'Task not found'}), 404
-
-    db_sess.delete(task)
-    db_sess.commit()
-    return jsonify({'success': True})
-
-
-@app.route('/projects/task/<int:task_id>', methods=['GET'])
-@login_required
-def get_task(task_id):
-    db_sess = db_session.create_session()
-    task = db_sess.query(Task).filter(Task.id == task_id).first()
-
-    if not task or task.project.user_id != current_user.id:
-        return jsonify({'error': 'Task not found'}), 404
-
-    return jsonify({
-        'id': task.id,
-        'name': task.name,
-        'description': task.description,
-        'deadline': task.deadline.isoformat() if task.deadline else None,
-        'is_completed': task.is_completed
-    })
-
-
-@app.route('/projects/task/edit', methods=['POST'])
-@login_required
-def edit_task():
-    task_id = request.form.get('task_id')
-    if not task_id:
-        flash('Task ID is required', 'error')
-        return redirect(url_for('index'))
-
-    db_sess = db_session.create_session()
-    task = db_sess.query(Task).filter(Task.id == task_id).first()
-
-    if not task or task.project.user_id != current_user.id:
-        flash('Task not found', 'error')
-        return redirect(url_for('index'))
-
-    task.name = request.form.get('name')
-    task.description = request.form.get('description')
-    deadline = request.form.get('deadline')
-    if deadline:
-        task.deadline = datetime.strptime(deadline, '%Y-%m-%dT%H:%M')
-    else:
-        task.deadline = None
-
-    db_sess.commit()
-    flash('Task updated successfully!', 'success')
-    return redirect(url_for('index'))
-
-
-@app.route('/projects/<int:project_id>', methods=['DELETE'])
-@login_required
-def delete_project(project_id):
-    db_sess = db_session.create_session()
-    project = db_sess.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
-
-    if not project:
-        return jsonify({'error': 'Project not found'}), 404
-
-    db_sess.delete(project)
-    db_sess.commit()
-    return jsonify({'success': True})
+    # GET request - show projects
+    projects = db_sess.query(Project).filter(Project.user_id == current_user.id).all()
+    return render_template('projects.html', projects=projects)
 
 
 def main():
+    """основная функция"""
+    # создание папки базы данных если ее нет
     if os.path.exists('db') is True:
         pass
     else:
         os.mkdir('db')
+    # подключение к базе данных
     db_session.global_init("db/database.db")
+    # запуск сервера
     app.run(port=8080, host='127.0.0.1')
 
 

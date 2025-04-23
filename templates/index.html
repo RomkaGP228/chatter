@@ -7,441 +7,125 @@
 {% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Главная</h2>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
-            <i class="bi bi-plus-lg"></i> Новый проект
-        </button>
-    </div>
-
-    <!-- Flash messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
-    <!-- Calendar Section -->
-    <div class="calendar-card">
-        <div class="card">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Календарь</h5>
+<div class="container mt-4">
+    <div class="row">
+        <!-- Calendar Section -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ current_date.strftime('%B %Y') }}</h5>
                     <div>
-                        <button class="btn btn-sm btn-outline-primary" id="prevMonth">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-primary" id="nextMonth">
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
+                        <a href="{{ url_for('index', month=(current_date.replace(month=current_date.month-1) if current_date.month > 1 else current_date.replace(year=current_date.year-1, month=12)).strftime('%Y-%m')) }}" 
+                           class="btn btn-sm btn-outline-primary">Предыдущий</a>
+                        <a href="{{ url_for('index', month=(current_date.replace(month=current_date.month+1) if current_date.month < 12 else current_date.replace(year=current_date.year+1, month=1)).strftime('%Y-%m')) }}" 
+                           class="btn btn-sm btn-outline-primary">Следующий</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="calendar">
+                        <div class="calendar-header">
+                            <div class="day-header">Пн</div>
+                            <div class="day-header">Вт</div>
+                            <div class="day-header">Ср</div>
+                            <div class="day-header">Чт</div>
+                            <div class="day-header">Пт</div>
+                            <div class="day-header">Сб</div>
+                            <div class="day-header">Вс</div>
+                        </div>
+                        <form method="POST" action="{{ url_for('index') }}" class="calendar-form" autocomplete="off">
+                            <div class="calendar-body">
+                                {% for _ in range(first_day_weekday) %}
+                                <div class="calendar-day empty"></div>
+                                {% endfor %}
+                                {% for day in calendar_days %}
+                                <button type="submit" name="selected_date" value="{{ day.date }}" 
+                                        class="calendar-day {% if day.has_tasks %}has-tasks{% endif %} {% if selected_date and selected_date.strftime('%Y-%m-%d') == day.date %}selected{% endif %}">
+                                    {{ day.day }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
-            <div class="card-body">
-                <div id="calendar"></div>
-            </div>
         </div>
-    </div>
 
-    <!-- Task Details Modal -->
-    <div class="modal fade" id="taskDetailsModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Детали задачи</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <!-- Tasks Section -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Задачи на {{ selected_date.strftime('%d.%m.%Y') if selected_date else 'Выберите дату' }}</h5>
                 </div>
-                <div class="modal-body">
-                    <div id="taskDetailsContent"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Projects Section -->
-    <div class="project-container">
-        {% for project in projects %}
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ project.name }}</h5>
-                <div>
-                    <button class="btn btn-sm btn-outline-primary" data-project-id="{{ project.id }}" onclick="addTask(this.getAttribute('data-project-id'))">
-                        <i class="bi bi-plus-lg"></i> Добавить задачу
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" data-project-id="{{ project.id }}" onclick="deleteProject(this.getAttribute('data-project-id'))">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body">
-                <p class="card-text">{{ project.description }}</p>
-                <div class="tasks-list">
-                    {% for task in project.tasks %}
-                    <div class="card task-item {% if task.is_completed %}completed{% endif %}">
-                        <div class="card-body">
+                <div class="card-body">
+                    {% if selected_date and task_deadlines.get(selected_date) %}
+                        {% for task in task_deadlines[selected_date] %}
+                        <div class="task-item mb-3">
                             <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="card-title">{{ task.name }}</h6>
-                                    <p class="card-text">{{ task.description }}</p>
-                                    <small class="text-muted">Дедлайн: {{ task.deadline.strftime('%Y-%m-%d %H:%M') if task.deadline else 'Нет дедлайна' }}</small>
-                                </div>
-                                <div>
-                                    <button class="btn btn-sm btn-outline-primary" data-task-id="{{ task.id }}" onclick="editTask(this.getAttribute('data-task-id'))">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn btn-sm {% if task.is_completed %}btn-success{% else %}btn-outline-success{% endif %}" 
-                                            data-task-id="{{ task.id }}" onclick="toggleTask(this.getAttribute('data-task-id'))">
-                                        <i class="bi bi-check-lg"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" data-task-id="{{ task.id }}" onclick="deleteTask(this.getAttribute('data-task-id'))">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                <h6 class="mb-0">{{ task.name }}</h6>
+                                <div class="task-actions">
+                                    <form method="POST" action="{{ url_for('index') }}" style="display: inline;" autocomplete="off">
+                                        <input type="hidden" name="task_id" value="{{ task.id }}" autocomplete="off">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary" name="action" value="edit">
+                                            Редактировать
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('index') }}" style="display: inline;" autocomplete="off">
+                                        <input type="hidden" name="delete_task" value="{{ task.id }}" autocomplete="off">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                onclick="return confirm('Вы уверены, что хотите удалить эту задачу?');">
+                                            Удалить
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
+                            <p class="text-muted mb-1">{{ task.description }}</p>
+                            <small class="text-muted">Проект: {{ task.project_name }}</small>
+                            <small class="text-muted d-block">Дедлайн: {{ task.deadline.strftime('%d.%m.%Y %H:%M') if task.deadline else 'Нет дедлайна' }}</small>
                         </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">Нет задач на выбранную дату</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Edit Form -->
+{% if editing_task %}
+<div class="modal show" tabindex="-1" style="display: block;">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактирование задачи</h5>
+                <a href="{{ url_for('index', selected_date=selected_date.strftime('%Y-%m-%d') if selected_date else '') }}" class="btn-close"></a>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('index') }}" autocomplete="off">
+                    <input type="hidden" name="task_id" value="{{ editing_task.id }}" autocomplete="off">
+                    <div class="mb-3">
+                        <label for="taskName" class="form-label">Название задачи</label>
+                        <input type="text" class="form-control" id="taskName" name="name" value="{{ editing_task.name }}" required autocomplete="off">
                     </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    <!-- New Project Modal -->
-    <div class="modal fade" id="newProjectModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Новый проект</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="projectForm" method="POST" action="{{ url_for('index') }}" autocomplete="off">
-                        {{ project_form.hidden_tag() }}
-                        <div class="mb-3">
-                            Название проекта
-                            {{ project_form.name(class="form-control", required="required", autocomplete="off") }}
-                            {% if project_form.name.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in project_form.name.errors %}
-                                        {{ error }}
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                        <div class="mb-3">
-                            Описание
-                            {{ project_form.description(class="form-control", autocomplete="off") }}
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" form="projectForm" class="btn btn-primary">Создать проект</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- New Task Modal -->
-    <div class="modal fade" id="newTaskModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Новая задача</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="taskForm" method="POST" action="/projects/task" onsubmit="return handleTaskSubmit(event)" autocomplete="off">
-                        {{ task_form.hidden_tag() }}
-                        <input type="hidden" name="project_id" id="projectId">
-                        <div class="mb-3">
-                            Название задачи
-                            {{ task_form.name(class="form-control", autocomplete="off") }}
-                        </div>
-                        <div class="mb-3">
-                            Описание
-                            {{ task_form.description(class="form-control", autocomplete="off") }}
-                        </div>
-                        <div class="mb-3">
-                            Дедлайн
-                            {{ task_form.deadline(class="form-control", autocomplete="off") }}
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" form="taskForm" class="btn btn-primary">Добавить задачу</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Edit Task Modal -->
-    <div class="modal fade" id="editTaskModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Редактировать задачу</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="editTaskForm" method="POST" action="/projects/task/edit">
-                        <input type="hidden" name="task_id" id="editTaskId">
-                        <div class="mb-3">
-                            <label for="editTaskName" class="form-label">Название задачи</label>
-                            <input type="text" class="form-control" id="editTaskName" name="name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="editTaskDescription" class="form-label">Описание</label>
-                            <textarea class="form-control" id="editTaskDescription" name="description"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="editTaskDeadline" class="form-label">Дедлайн</label>
-                            <input type="datetime-local" class="form-control" id="editTaskDeadline" name="deadline">
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" form="editTaskForm" class="btn btn-primary">Сохранить изменения</button>
-                </div>
-            </div>
-        </div>
-    </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Initialize calendar data
-    const taskDetails = {{ task_deadlines|tojson|safe }};
-    let currentDate = new Date();
-
-    function handleTaskSubmit(event) {
-        event.preventDefault();
-        const form = event.target;
-        const formData = new FormData(form);
-        
-        fetch(form.action, {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (response.ok) {
-                // Очищаем форму
-                form.reset();
-                // Очищаем значения полей вручную для надежности
-                const inputs = form.querySelectorAll('input, textarea');
-                inputs.forEach(input => {
-                    input.value = '';
-                });
-                
-                // Закрываем модальное окно
-                bootstrap.Modal.getInstance(document.getElementById('newTaskModal')).hide();
-                
-                // Обновляем страницу
-                location.reload();
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-        });
-        
-        return false;
-    }
-
-    function renderCalendar() {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        
-        let calendarHTML = `
-            <div class="calendar-header">
-                <h6 class="text-center mb-3">${currentDate.toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}</h6>
-            </div>
-            <div class="calendar-grid">
-                <div class="calendar-weekday">Вс</div>
-                <div class="calendar-weekday">Пн</div>
-                <div class="calendar-weekday">Вт</div>
-                <div class="calendar-weekday">Ср</div>
-                <div class="calendar-weekday">Чт</div>
-                <div class="calendar-weekday">Пт</div>
-                <div class="calendar-weekday">Сб</div>
-        `;
-        
-        // Add empty cells for days before the first day of the month
-        for (let i = 0; i < firstDay.getDay(); i++) {
-            calendarHTML += '<div class="calendar-day empty"></div>';
-        }
-        
-        // Add days of the month
-        for (let day = 1; day <= lastDay.getDate(); day++) {
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const tasks = taskDetails[dateStr] || [];
-            
-            let dayClass = 'calendar-day';
-            if (tasks.length > 0) {
-                dayClass += ' has-tasks';
-            }
-            
-            calendarHTML += `
-                <div class="${dayClass}" data-date="${dateStr}">
-                    ${day}
-                    ${tasks.length > 0 ? `<span class="task-indicator">${tasks.length}</span>` : ''}
-                </div>
-            `;
-        }
-        
-        calendarHTML += '</div>';
-        document.getElementById('calendar').innerHTML = calendarHTML;
-        
-        // Add click handlers for days with tasks
-        document.querySelectorAll('.calendar-day.has-tasks').forEach(day => {
-            day.addEventListener('click', () => {
-                const date = day.dataset.date;
-                const tasks = taskDetails[date];
-                showTaskDetails(date, tasks);
-            });
-        });
-    }
-    
-    function showTaskDetails(date, tasks) {
-        const dateObj = new Date(date);
-        const formattedDate = dateObj.toLocaleDateString('ru-RU', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-        });
-        
-        let content = `<h6>Задачи на ${formattedDate}</h6>`;
-        content += '<ul class="list-group">';
-        
-        tasks.forEach(task => {
-            const statusClass = task.is_completed ? 'text-success' : 'text-warning';
-            const statusIcon = task.is_completed ? 'fa-check-circle' : 'fa-clock';
-            content += `
-                <li class="list-group-item">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>${task.name}</strong>
-                            <br>
-                            <small class="text-muted">Проект: ${task.project}</small>
-                        </div>
-                        <i class="fas ${statusIcon} ${statusClass}"></i>
+                    <div class="mb-3">
+                        <label for="taskDescription" class="form-label">Описание</label>
+                        <textarea class="form-control" id="taskDescription" name="description" rows="3" autocomplete="off">{{ editing_task.description }}</textarea>
                     </div>
-                </li>
-            `;
-        });
-        
-        content += '</ul>';
-        document.getElementById('taskDetailsContent').innerHTML = content;
-        new bootstrap.Modal(document.getElementById('taskDetailsModal')).show();
-    }
-    
-    // Initialize calendar
-    renderCalendar();
-    
-    // Add event listeners for month navigation
-    document.getElementById('prevMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() - 1);
-        renderCalendar();
-    });
-    
-    document.getElementById('nextMonth').addEventListener('click', () => {
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        renderCalendar();
-    });
-
-    // Task management functions
-    function addTask(projectId) {
-        document.getElementById('projectId').value = projectId;
-        new bootstrap.Modal(document.getElementById('newTaskModal')).show();
-    }
-
-    function toggleTask(taskId) {
-        fetch(`/projects/task/${taskId}/toggle`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        }).then(response => {
-            if (response.ok) {
-                location.reload();
-            }
-        });
-    }
-
-    function deleteTask(taskId) {
-        if (confirm('Вы уверены, что хотите удалить эту задачу?')) {
-            fetch(`/projects/task/${taskId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            }).then(response => {
-                if (response.ok) {
-                    location.reload();
-                }
-            });
-        }
-    }
-
-    function deleteProject(projectId) {
-        if (confirm('Вы уверены, что хотите удалить этот проект и все его задачи?')) {
-            fetch(`/projects/${projectId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            }).then(response => {
-                if (response.ok) {
-                    location.reload();
-                }
-            });
-        }
-    }
-
-    function editTask(taskId) {
-        fetch(`/projects/task/${taskId}`)
-            .then(response => response.json())
-            .then(task => {
-                document.getElementById('editTaskId').value = taskId;
-                document.getElementById('editTaskName').value = task.name;
-                document.getElementById('editTaskDescription').value = task.description || '';
-                if (task.deadline) {
-                    const deadline = new Date(task.deadline);
-                    document.getElementById('editTaskDeadline').value = deadline.toISOString().slice(0, 16);
-                } else {
-                    document.getElementById('editTaskDeadline').value = '';
-                }
-                new bootstrap.Modal(document.getElementById('editTaskModal')).show();
-            });
-    }
-
-    // Очистка формы после успешного добавления задачи
-    document.addEventListener('DOMContentLoaded', function() {
-        const taskForm = document.getElementById('taskForm');
-        if (taskForm) {
-            taskForm.addEventListener('submit', function() {
-                // Очищаем форму после отправки
-                setTimeout(() => {
-                    taskForm.reset();
-                    // Очищаем значения полей вручную для надежности
-                    const inputs = taskForm.querySelectorAll('input, textarea');
-                    inputs.forEach(input => {
-                        input.value = '';
-                    });
-                }, 100);
-            });
-        }
-    });
-</script>
+                    <div class="mb-3">
+                        <label for="taskDeadline" class="form-label">Дедлайн</label>
+                        <input type="datetime-local" class="form-control" id="taskDeadline" name="deadline" 
+                               value="{{ editing_task.deadline.strftime('%Y-%m-%dT%H:%M') if editing_task.deadline else '' }}" autocomplete="off">
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ url_for('index', selected_date=selected_date.strftime('%Y-%m-%d') if selected_date else '') }}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop show"></div>
+{% endif %}
 {% endblock %}

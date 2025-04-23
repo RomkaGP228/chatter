@@ -1,19 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Chatter - Projects{% endblock %}
+{% block title %}Chatter - Проекты{% endblock %}
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style_projects.css') }}">
 {% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Проекты</h2>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
-            <i class="bi bi-plus-lg"></i> Новый проект
-        </button>
-    </div>
-
+<div class="container mt-4">
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -26,50 +20,105 @@
         {% endif %}
     {% endwith %}
 
-    <!-- Projects list -->
+    <!-- Projects Section -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Проекты</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
+            <i class="bi bi-plus-lg"></i> Новый проект
+        </button>
+    </div>
+
     <div class="project-container">
-        {% for project in projects %}
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">{{ project.name }}</h5>
-                <div>
-                    <button class="btn btn-sm btn-outline-primary" data-project-id="{{ project.id }}" onclick="addTask(this.getAttribute('data-project-id'))">
-                        <i class="bi bi-plus-lg"></i> Добавить задачу
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" data-project-id="{{ project.id }}" onclick="deleteProject(this.getAttribute('data-project-id'))">
-                        <i class="bi bi-trash"></i>
-                    </button>
+        {% if projects %}
+            {% for project in projects %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ project.name }}</h5>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#newTaskModal{{ project.id }}">
+                            <i class="bi bi-plus-lg"></i> Добавить задачу
+                        </button>
+                        <form method="POST" action="{{ url_for('projects') }}" style="display: inline;" autocomplete="off">
+                            <input type="hidden" name="delete_project" value="{{ project.id }}" autocomplete="off">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Вы уверены, что хотите удалить этот проект и все его задачи?');">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
                 </div>
-            </div>
-            <div class="card-body">
-                <p class="card-text">{{ project.description }}</p>
-                <div class="tasks-list">
-                    {% for task in project.tasks %}
-                    <div class="card task-item {% if task.is_completed %}completed{% endif %}">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="card-title">{{ task.name }}</h6>
-                                    <p class="card-text">{{ task.description }}</p>
-                                    <small class="text-muted">Deadline: {{ task.deadline.strftime('%Y-%m-%d %H:%M') if task.deadline else 'No deadline' }}</small>
-                                </div>
-                                <div>
-                                    <button class="btn btn-sm {% if task.is_completed %}btn-success{% else %}btn-outline-success{% endif %}" 
-                                            data-task-id="{{ task.id }}" onclick="toggleTask(this.getAttribute('data-task-id'))">
-                                        <i class="bi bi-check-lg"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" data-task-id="{{ task.id }}" onclick="deleteTask(this.getAttribute('data-task-id'))">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                <div class="card-body">
+                    <p class="card-text">{{ project.description }}</p>
+                    <div class="tasks-list">
+                        {% for task in project.tasks %}
+                        <div class="card task-item {% if task.is_completed %}completed{% endif %}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="card-title">{{ task.name }}</h6>
+                                        <p class="card-text">{{ task.description }}</p>
+                                        <small class="text-muted">Дедлайн: {{ task.deadline.strftime('%d.%m.%Y %H:%M') if task.deadline else 'Нет дедлайна' }}</small>
+                                    </div>
+                                    <div>
+                                        <form method="POST" action="{{ url_for('projects') }}" style="display: inline;" autocomplete="off">
+                                            <input type="hidden" name="toggle_task" value="{{ task.id }}" autocomplete="off">
+                                            <button type="submit" class="btn btn-sm {% if task.is_completed %}btn-success{% else %}btn-outline-success{% endif %}">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ url_for('projects') }}" style="display: inline;" autocomplete="off">
+                                            <input type="hidden" name="delete_task" value="{{ task.id }}" autocomplete="off">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Вы уверены, что хотите удалить эту задачу?');">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
             </div>
-        </div>
-        {% endfor %}
+
+            <!-- New Task Modal for this project -->
+            <div class="modal fade" id="newTaskModal{{ project.id }}" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Новая задача</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form method="POST" action="{{ url_for('projects') }}" autocomplete="off">
+                                <input type="hidden" name="project_id" value="{{ project.id }}" autocomplete="off">
+                                <div class="mb-3">
+                                    <label for="taskName{{ project.id }}" class="form-label">Название задачи</label>
+                                    <input type="text" class="form-control" id="taskName{{ project.id }}" name="task_name" required autocomplete="off">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="taskDescription{{ project.id }}" class="form-label">Описание</label>
+                                    <textarea class="form-control" id="taskDescription{{ project.id }}" name="task_description" rows="3" autocomplete="off"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="taskDeadline{{ project.id }}" class="form-label">Дедлайн</label>
+                                    <input type="datetime-local" class="form-control" id="taskDeadline{{ project.id }}" name="task_deadline" autocomplete="off">
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                    <button type="submit" class="btn btn-primary">Добавить задачу</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-5">
+                <h4>У вас пока нет проектов</h4>
+                <p class="text-muted">Создайте свой первый проект, нажав на кнопку "Новый проект"</p>
+            </div>
+        {% endif %}
     </div>
 
     <!-- New Project Modal -->
@@ -81,115 +130,23 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="projectForm" method="POST" action="{{ url_for('projects') }}">
-                        {{ project_form.hidden_tag() }}
+                    <form method="POST" action="{{ url_for('projects') }}" autocomplete="off">
                         <div class="mb-3">
-                            Название проекта
-                            {{ project_form.name(class="form-control", required="required") }}
-                            {% if project_form.name.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in project_form.name.errors %}
-                                        {{ error }}
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
+                            <label for="projectName" class="form-label">Название проекта</label>
+                            <input type="text" class="form-control" id="projectName" name="name" required autocomplete="off">
                         </div>
-                        <div class="mb-3">Описание
-                            {{ project_form.description(class="form-control") }}
+                        <div class="mb-3">
+                            <label for="projectDescription" class="form-label">Описание</label>
+                            <textarea class="form-control" id="projectDescription" name="description" rows="3" autocomplete="off"></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-primary">Создать проект</button>
                         </div>
                     </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" form="projectForm" class="btn btn-primary">Создать проект</button>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- New Task Modal -->
-    <div class="modal fade" id="newTaskModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Новая задача</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="taskForm" method="POST" action="/projects/task">
-                        {{ task_form.hidden_tag() }}
-                        <input type="hidden" name="project_id" id="projectId">
-                        <div class="mb-3">
-                            Название задачи
-                            {{ task_form.name(class="form-control") }}
-                        </div>
-                        <div class="mb-3">
-                            Описание
-                            {{ task_form.description(class="form-control") }}
-                        </div>
-                        <div class="mb-3">
-                            Дедлайн
-                            {{ task_form.deadline(class="form-control") }}
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" form="taskForm" class="btn btn-primary">Добавить задачу</button>
-                </div>
-            </div>
-        </div>
-    </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    function addTask(projectId) {
-        document.getElementById('projectId').value = projectId;
-        new bootstrap.Modal(document.getElementById('newTaskModal')).show();
-    }
-
-    function toggleTask(taskId) {
-        fetch(`/projects/task/${taskId}/toggle`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        }).then(response => {
-            if (response.ok) {
-                location.reload();
-            }
-        });
-    }
-
-    function deleteTask(taskId) {
-        if (confirm('Are you sure you want to delete this task?')) {
-            fetch(`/projects/task/${taskId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            }).then(response => {
-                if (response.ok) {
-                    location.reload();
-                }
-            });
-        }
-    }
-
-    function deleteProject(projectId) {
-        if (confirm('Are you sure you want to delete this project and all its tasks?')) {
-            fetch(`/projects/${projectId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            }).then(response => {
-                if (response.ok) {
-                    location.reload();
-                }
-            });
-        }
-    }
-</script>
+</div>
 {% endblock %} 

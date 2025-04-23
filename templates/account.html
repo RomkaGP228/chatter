@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Chatter - Account{% endblock %}
+{% block title %}Chatter - Аккаунт{% endblock %}
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style_account.css') }}">
@@ -25,19 +25,23 @@
         {% if current_user.is_authenticated %}
             <form method="POST" action="{{ url_for('account') }}">
                 <div class="mb-3">
-                    <label for="name" class="form-label">Имя Аккаунта</label>
+                    <label for="name" class="form-label">Имя пользователя</label>
                     <input type="text" class="form-control" id="name" name="name" value="{{ current_user.name }}" required>
                 </div>
                 <div class="mb-3">
-                    <label for="email" class="form-label">Почта</label>
+                    <label for="email" class="form-label">Email</label>
                     <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required>
                 </div>
                 <div class="mb-3">
-                    <label for="about" class="form-label">Описание</label>
+                    <label for="telegram" class="form-label">Telegram id (чтобы узнать - @username_to_id_bot, написать - @catterlayabot)</label>
+                    <input type="text" class="form-control" id="telegram" name="telegram" value="{{ current_user.telegram }}" placeholder="@username">
+                </div>
+                <div class="mb-3">
+                    <label for="about" class="form-label">О себе</label>
                     <textarea class="form-control" id="about" name="about" rows="3">{{ current_user.about }}</textarea>
                 </div>
                 <div class="mb-3">
-                    <label for="password" class="form-label">Новый пароль</label>
+                    <label for="password" class="form-label">Новый пароль (оставьте пустым, если не хотите менять)</label>
                     <input type="password" class="form-control" id="password" name="password">
                 </div>
                 <button type="submit" class="btn btn-primary">Сохранить изменения</button>

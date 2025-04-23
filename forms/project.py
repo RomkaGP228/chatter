@@ -13,4 +13,4 @@ class TaskForm(FlaskForm):
     name = StringField('Task Name', validators=[DataRequired()])
     description = TextAreaField('Description')
     deadline = DateTimeLocalField('Deadline', format='%Y-%m-%dT%H:%M')
-    submit = SubmitField('Add Task') 
+    submit = SubmitField('Add Task')
