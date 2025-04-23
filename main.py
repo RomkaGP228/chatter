@@ -176,7 +176,7 @@ def index():
                 db_sess.delete(task)
                 db_sess.commit()
                 # отправка в теелграм
-                telegram(f'Задача: {task.name} удалена!')
+                telegram(current_user.telegram, f'Задача: {task.name} удалена!')
                 flash('Задача успешно удалена!', 'success')
             else:
                 flash('Ошибка: Задача не найдена или у вас нет прав на её удаление', 'error')
@@ -251,7 +251,7 @@ def projects():
             db_sess.commit()
             flash('Проект успешно создан!', 'success')
             # отправка в телеграм
-            telegram(f"Создан новый проект: {request.form['name']}")
+            telegram(current_user.telegram, f"Создан новый проект: {request.form['name']}")
             return redirect(url_for('projects'))
 
         elif 'task_name' in request.form:  # Добавление новой задачи
@@ -270,7 +270,7 @@ def projects():
                 db_sess.add(task)
                 db_sess.commit()
                 # отправка в теелграм
-                telegram(f"Добавлена новая задача: {task_name} с дедлайном: {task.deadline} в проект: {project.name}")
+                telegram(current_user.telegram, f"Добавлена новая задача: {task_name} с дедлайном: {task.deadline} в проект: {project.name}")
                 flash('Задача успешно добавлена!', 'success')
             else:
                 flash('Ошибка: Проект не найден или у вас нет прав на его изменение', 'error')
@@ -283,7 +283,7 @@ def projects():
             if task and task.project.user_id == current_user.id:
                 task.is_completed = not task.is_completed
                 # отправка в теелграм
-                telegram(f'Задача: {task.name} выполнена')
+                telegram(current_user.telegram, f'Задача: {task.name} выполнена')
                 db_sess.commit()
             else:
                 flash('Ошибка: Задача не найдена или у вас нет прав на её изменение', 'error')
@@ -296,7 +296,7 @@ def projects():
                 db_sess.delete(task)
                 db_sess.commit()
                 # отправка в теелграм
-                telegram(f'Задача: {task.name} удалена!')
+                telegram(current_user.telegram, f'Задача: {task.name} удалена!')
                 flash('Задача успешно удалена!', 'success')
             else:
                 flash('Ошибка: Задача не найдена или у вас нет прав на её удаление', 'error')
@@ -309,7 +309,7 @@ def projects():
             if project and project.user_id == current_user.id:
                 db_sess.delete(project)
                 db_sess.commit()
-                telegram(f'Проект: {project.name} удален!')
+                telegram(current_user.telegram, f'Проект: {project.name} удален!')
                 flash('Проект успешно удален!', 'success')
             else:
                 flash('Ошибка: Проект не найден или у вас нет прав на его удаление', 'error')
