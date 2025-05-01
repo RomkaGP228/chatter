@@ -7,6 +7,7 @@ from forms.user import LoginForm, RegisterForm
 from datetime import datetime, timedelta
 import os
 from data.telegram_text import telegram
+from data.scheduled_tasks import schedule_task, cancel_task
 
 app = Flask(__name__)
 login_manager = LoginManager()
@@ -289,13 +290,14 @@ def projects():
                     description=request.form['task_description'],
                     project_id=project_id
                 )
-
                 if request.form['task_deadline']:
                     task.deadline = datetime.strptime(request.form['task_deadline'], '%Y-%m-%dT%H:%M')
                 db_sess.add(task)
                 db_sess.commit()
                 # отправка в теелграм
                 telegram(current_user.telegram, f"Добавлена новая задача: {task_name} с дедлайном: {task.deadline} в проект: {project.name}")
+                # делаем отсылку что дедлайн закончился
+                schedule_task(f'task_{task.id}', task_name, task.deadline, current_user.telegram)
                 flash('Задача успешно добавлена!', 'success')
             else:
                 flash('Ошибка: Проект не найден или у вас нет прав на его изменение', 'error')
@@ -321,6 +323,7 @@ def projects():
                 db_sess.delete(task)
                 db_sess.commit()
                 # отправка в теелграм
+                cancel_task(f'task_{task_id}')
                 telegram(current_user.telegram, f'Задача: {task.name} удалена!')
                 flash('Задача успешно удалена!', 'success')
             else:
